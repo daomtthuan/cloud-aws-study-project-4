@@ -1,26 +1,24 @@
-import { CustomAuthorizerEvent, CustomAuthorizerResult } from 'aws-lambda'
-import 'source-map-support/register'
+import 'source-map-support/register';
 
-import { verify, decode } from 'jsonwebtoken'
-import { createLogger } from '../../utils/logger'
-import Axios from 'axios'
-import { Jwt } from '../../auth/Jwt'
-import { JwtPayload } from '../../auth/JwtPayload'
+import { CustomAuthorizerEvent, CustomAuthorizerResult } from 'aws-lambda';
+import Axios from 'axios';
+import { decode, verify } from 'jsonwebtoken';
 
-const logger = createLogger('auth')
+import { Jwt } from '../../auth/Jwt';
+import { JwtPayload } from '../../auth/JwtPayload';
+import { createLogger } from '../../utils/logger';
 
-// TODO: Provide a URL that can be used to download a certificate that can be used
-// to verify JWT token signature.
-// To get this URL you need to go to an Auth0 page -> Show Advanced Settings -> Endpoints -> JSON Web Key Set
-const jwksUrl = '...'
+const logger = createLogger('Authorizer');
 
-export const handler = async (
-  event: CustomAuthorizerEvent
-): Promise<CustomAuthorizerResult> => {
-  logger.info('Authorizing a user', event.authorizationToken)
+// JSON Web key set
+const jwksUrl = 'https://dev-e07f8djplbwxi7u6.us.auth0.com/.well-known/jwks.json';
+
+export async function handler(event: CustomAuthorizerEvent): Promise<CustomAuthorizerResult> {
+  logger.info('Authorizing user', event.authorizationToken);
+
   try {
-    const jwtToken = await verifyToken(event.authorizationToken)
-    logger.info('User was authorized', jwtToken)
+    const jwtToken = await verifyToken(event.authorizationToken);
+    logger.info('User was authorized', jwtToken);
 
     return {
       principalId: jwtToken.sub,
@@ -30,13 +28,13 @@ export const handler = async (
           {
             Action: 'execute-api:Invoke',
             Effect: 'Allow',
-            Resource: '*'
-          }
-        ]
-      }
-    }
+            Resource: '*',
+          },
+        ],
+      },
+    };
   } catch (e) {
-    logger.error('User not authorized', { error: e.message })
+    logger.error('User not authorized', { error: e.message });
 
     return {
       principalId: 'user',
@@ -46,32 +44,49 @@ export const handler = async (
           {
             Action: 'execute-api:Invoke',
             Effect: 'Deny',
-            Resource: '*'
-          }
-        ]
-      }
-    }
+            Resource: '*',
+          },
+        ],
+      },
+    };
   }
 }
 
 async function verifyToken(authHeader: string): Promise<JwtPayload> {
-  const token = getToken(authHeader)
-  const jwt: Jwt = decode(token, { complete: true }) as Jwt
+  logger.info('--INTO VertifyToken Function--');
 
-  // TODO: Implement token verification
-  // You should implement it similarly to how it was implemented for the exercise for the lesson 5
-  // You can read more about how to do this here: https://auth0.com/blog/navigating-rs256-and-jwks/
-  return undefined
+  const token = getToken(authHeader);
+  const jwt: Jwt = decode(token, { complete: true }) as Jwt;
+
+  const res = await Axios.get(jwksUrl);
+  const keys = res.data.keys;
+  const signinKeys = keys.find((key) => key.kid === jwt.header.kid);
+
+  logger.info('--SIGNIN Key--', signinKeys);
+
+  if (!signinKeys) {
+    throw new Error('Key not found!');
+  }
+
+  // Get pem data
+  const pemData = signinKeys.x5c[0];
+  // Convert pem data to cert
+  const cert = `-----BEGIN CERTIFICATE-----\n${pemData}\n-----END CERTIFICATE-----`;
+  // Verify toke
+  const verifyToken = verify(token, cert, { algorithms: ['RS256'] }) as JwtPayload;
+
+  logger.info('--VERIFY TOKEN--', verifyToken);
+
+  return verifyToken;
 }
 
 function getToken(authHeader: string): string {
-  if (!authHeader) throw new Error('No authentication header')
+  if (!authHeader) throw new Error('No authentication header');
 
-  if (!authHeader.toLowerCase().startsWith('bearer '))
-    throw new Error('Invalid authentication header')
+  if (!authHeader.toLowerCase().startsWith('bearer ')) throw new Error('Invalid authentication header');
 
-  const split = authHeader.split(' ')
-  const token = split[1]
+  const split = authHeader.split(' ');
+  const token = split[1];
 
-  return token
+  return token;
 }

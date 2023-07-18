@@ -1,25 +1,27 @@
-import 'source-map-support/register'
+import 'source-map-support/register';
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
-import * as middy from 'middy'
-import { cors, httpErrorHandler } from 'middy/middlewares'
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
-import { deleteTodo } from '../../businessLogic/todos'
-import { getUserId } from '../utils'
+import { deleteTodo } from '../../businessLogic/todos';
+import { createLogger } from '../../utils/logger';
+import { getUserId } from '../utils';
 
-export const handler = middy(
-  async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-    const todoId = event.pathParameters.todoId
-    // TODO: Remove a TODO item by id
-    
-    return undefined
-  }
-)
+export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  createLogger('Processing event: ' + event);
 
-handler
-  .use(httpErrorHandler())
-  .use(
-    cors({
-      credentials: true
-    })
-  )
+  const todoId = event.pathParameters.todoId;
+  const userId = getUserId(event);
+  const result = await deleteTodo(userId, todoId);
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Credentials': true,
+  };
+
+  return {
+    statusCode: 201,
+    headers,
+    body: JSON.stringify({
+      result,
+    }),
+  };
+}

@@ -1,26 +1,27 @@
-import 'source-map-support/register'
+import 'source-map-support/register';
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
-import * as middy from 'middy'
-import { cors, httpErrorHandler } from 'middy/middlewares'
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
-import { createAttachmentPresignedUrl } from '../../businessLogic/todos'
-import { getUserId } from '../utils'
+import { createAttachmentUrl } from '../../businessLogic/todos';
+import { createLogger } from '../../utils/logger';
+import { getUserId } from '../utils';
 
-export const handler = middy(
-  async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-    const todoId = event.pathParameters.todoId
-    // TODO: Return a presigned URL to upload a file for a TODO item with the provided id
-    
+export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  createLogger('Processing event: ' + event);
 
-    return undefined
-  }
-)
+  const todoId = event.pathParameters.todoId;
+  const userId = getUserId(event);
+  const url = await createAttachmentUrl(userId, todoId);
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Credentials': true,
+  };
 
-handler
-  .use(httpErrorHandler())
-  .use(
-    cors({
-      credentials: true
-    })
-  )
+  return {
+    statusCode: 201,
+    headers,
+    body: JSON.stringify({
+      uploadUrl: url,
+    }),
+  };
+}
