@@ -148,6 +148,12 @@ export class Todos extends React.PureComponent<TodosProps, TodosState> {
   }
 
   renderTodosList() {
+    const onErrorImage = ({ target }: Event) => {
+      if (!target) return;
+
+      (target as HTMLImageElement).src = './Image_not_available.png';
+    };
+
     return (
       <Grid padded>
         {this.state.todos.map((todo, pos) => {
@@ -172,7 +178,7 @@ export class Todos extends React.PureComponent<TodosProps, TodosState> {
                   <Icon name="delete" />
                 </Button>
               </Grid.Column>
-              {todo.attachmentUrl && <Image src={todo.attachmentUrl} size="small" wrapped />}
+              {todo.attachmentUrl && <Image src={todo.attachmentUrl} size="small" onError={onErrorImage} wrapped />}
               <Grid.Column width={16}>
                 <Divider />
               </Grid.Column>
